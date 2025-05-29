@@ -1,0 +1,17 @@
+{
+    "name": "seeru/flight-sdk",
+    "description": "PHP SDK for Seeru Travel Flight API",
+    "type": "library",
+    "require": {
+        "php": "^8.0",
+        "ext-curl": "*",
+        "ext-json": "*"
+    },
+    "autoload": {
+        "psr-4": {
+            "Seeru\\FlightSDK\\": "src/"
+        }
+    },
+    "license": "MIT",
+    "minimum-stability": "stable"
+} 

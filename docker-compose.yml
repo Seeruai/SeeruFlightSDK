@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    volumes:
+      - .:/app
+      - /app/vendor
+    environment:
+      - SEERU_API_TOKEN=${SEERU_API_TOKEN}
+    command: php example.php 
+
+networks:
+  default:
+    external:
+      name: local-network
