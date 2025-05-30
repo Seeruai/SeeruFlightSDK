@@ -12,7 +12,8 @@ use Seeru\FlightSDK\Types\{
     BookingSaveResponse,
     OrderResponse,
     Passenger,
-    Contact
+    Contact,
+    SearchOptions
 };
 
 class SeeruFlightSDK
@@ -25,7 +26,7 @@ class SeeruFlightSDK
     ) {}
 
     /**
-     * Search for flights
+     * Search for one-way flights (Legacy method)
      * 
      * @param string $fromAirport Origin airport code (e.g., CAI)
      * @param string $toAirport Destination airport code (e.g., JED)
@@ -33,6 +34,7 @@ class SeeruFlightSDK
      * @param int $adt Number of adults
      * @param int $chd Number of children
      * @param int $inf Number of infants
+     * @param array|SearchOptions|null $options Search options
      * @return SearchResponse
      * @throws SeeruApiException
      */
@@ -42,9 +44,90 @@ class SeeruFlightSDK
         string $date,
         int $adt = 1,
         int $chd = 0,
-        int $inf = 0
+        int $inf = 0,
+        array|SearchOptions|null $options = null
     ): SearchResponse {
-        $endpoint = "/search/{$fromAirport}-{$toAirport}-{$date}/{$adt}/{$chd}/{$inf}";
+        $route = "{$fromAirport}-{$toAirport}-{$date}";
+        return $this->searchMultiCity([$route], $adt, $chd, $inf, $options);
+    }
+
+    /**
+     * Search for round-trip flights
+     * 
+     * @param string $fromAirport Origin airport code (e.g., CAI)
+     * @param string $toAirport Destination airport code (e.g., JED)
+     * @param string $departDate Departure date in YYYYMMDD format
+     * @param string $returnDate Return date in YYYYMMDD format
+     * @param int $adt Number of adults
+     * @param int $chd Number of children
+     * @param int $inf Number of infants
+     * @param array|SearchOptions|null $options Search options
+     * @return SearchResponse
+     * @throws SeeruApiException
+     */
+    public function searchRoundTrip(
+        string $fromAirport,
+        string $toAirport,
+        string $departDate,
+        string $returnDate,
+        int $adt = 1,
+        int $chd = 0,
+        int $inf = 0,
+        array|SearchOptions|null $options = null
+    ): SearchResponse {
+        $routes = [
+            "{$fromAirport}-{$toAirport}-{$departDate}",
+            "{$toAirport}-{$fromAirport}-{$returnDate}"
+        ];
+        
+        return $this->searchMultiCity($routes, $adt, $chd, $inf, $options);
+    }
+
+    /**
+     * Search for multi-city flights
+     * This method can be used for one-way, round-trip, or multi-city searches
+     * 
+     * @param array $trips Array of trip segments in format ["FROM-TO-DATE", ...]
+     *                     or ["FROM", "TO", "DATE"] for each segment
+     * @param int $adt Number of adults
+     * @param int $chd Number of children
+     * @param int $inf Number of infants
+     * @param array|SearchOptions|null $options Search options
+     * @return SearchResponse
+     * @throws SeeruApiException
+     */
+    public function searchMultiCity(
+        array $trips,
+        int $adt = 1,
+        int $chd = 0,
+        int $inf = 0,
+        array|SearchOptions|null $options = null
+    ): SearchResponse {
+        // Process trips array to handle both string format and array format
+        $processedTrips = array_map(function($trip) {
+            if (is_array($trip)) {
+                if (count($trip) !== 3) {
+                    throw new SeeruApiException('Each trip array must contain exactly 3 elements: [fromAirport, toAirport, date]');
+                }
+                return implode('-', $trip);
+            }
+            return $trip;
+        }, $trips);
+
+        // Join all trips with colon
+        $route = implode(':', $processedTrips);
+        
+        // Process search options
+        if (is_array($options)) {
+            $options = SearchOptions::fromArray($options);
+        }
+        
+        $endpoint = "/search/{$route}/{$adt}/{$chd}/{$inf}";
+        
+        if ($options instanceof SearchOptions) {
+            $endpoint .= $options->toQueryString();
+        }
+        
         $response = $this->makeRequest($endpoint);
         return SearchResponse::fromArray($response);
     }

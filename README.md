@@ -1,6 +1,16 @@
-# Seeru Flight SDK for PHP
+# Seeru Flight SDK
 
-A modern PHP 8.0+ SDK for the Seeru Travel Flight API.
+A modern PHP 8.0+ SDK for the Seeru Travel Flight API. This SDK provides a clean, type-safe interface for searching and booking flights through the Seeru Travel platform.
+
+## Features
+
+- Modern PHP 8.0+ features
+- PSR-4 autoloading
+- Strong typing
+- Proper error handling
+- Immutable response objects
+- Support for one-way, round-trip, and multi-city searches
+- Flexible search options
 
 ## Installation
 
@@ -8,123 +18,117 @@ A modern PHP 8.0+ SDK for the Seeru Travel Flight API.
 composer require seeru/flight-sdk
 ```
 
-## Requirements
-
-- PHP 8.0 or higher
-- ext-curl
-- ext-json
-
-## Usage
-
-### Initialize the SDK
+## Basic Usage
 
 ```php
 use Seeru\FlightSDK\SeeruFlightSDK;
+use Seeru\FlightSDK\Types\SearchOptions;
 
-$sdk = new SeeruFlightSDK('your_api_token');
+// Initialize the SDK
+$sdk = new SeeruFlightSDK('your-api-token');
+
+// Search for one-way flights
+$response = $sdk->search(
+    fromAirport: 'DEL',
+    toAirport: 'MOW',
+    date: '20250612',
+    adt: 1,
+    chd: 0,
+    inf: 0
+);
+
+// Search with options
+$options = new SearchOptions(
+    airline: 'EK,EY',  // Emirates and Etihad
+    source: 'NS,MW', // Search in GDS and NDC sources
+    direct: true,      // Only direct flights
+    cabin: SearchOptions::CABIN_BUSINESS // Business class
+);
+
+// Round-trip search with options
+$response = $sdk->searchRoundTrip(
+    fromAirport: 'DEL',
+    toAirport: 'MOW',
+    departDate: '20250612',
+    returnDate: '20250622',
+    options: $options
+);
+
+// Multi-city search
+$response = $sdk->searchMultiCity([
+    'DEL-MOW-20250612',
+    'LED-DEL-20250622',
+    'DEL-DXB-20250625'
+]);
 ```
 
-### Search for Flights
+## Search Options
+
+The SDK supports the following search options:
+
+| Option  | Description | Format | Default |
+|---------|-------------|---------|---------|
+| airline | Filter by specific airlines | Comma-separated IATA codes (e.g., 'EK,EY') | null |
+| source  | Filter by source systems | Comma-separated 2-char codes (e.g., 'GDS,NDC') | null |
+| direct  | Show only direct flights | boolean | false |
+| cabin   | Cabin class preference | 'e' (Economy), 'p' (Premium Economy), 'b' (Business), 'f' (First) | 'e' |
+
+Options can be provided either as a `SearchOptions` object or as an array:
+
+```php
+// Using SearchOptions object
+$options = new SearchOptions(
+    airline: 'EK,EY',
+    cabin: SearchOptions::CABIN_BUSINESS
+);
+
+// Using array
+$options = [
+    'airline' => 'EK,EY',
+    'cabin' => 'b'
+];
+```
+
+## Route Formats
+
+The SDK supports three search types with flexible input formats:
+
+1. One-way: `DEL-MOW-20250612`
+2. Round-trip: `DEL-MOW-20250612:MOW-DEL-20250622`
+3. Multi-city: `DEL-MOW-20250612:LED-DEL-20250622:DEL-DXB-20250625`
+
+Each route segment can also be provided as an array:
+```php
+$routes = [
+    ['DEL', 'MOW', '20250612'],
+    ['MOW', 'DEL', '20250622']
+];
+```
+
+## Error Handling
+
+The SDK uses custom exceptions for error handling:
 
 ```php
 use Seeru\FlightSDK\Exceptions\SeeruApiException;
 
 try {
-    $searchResponse = $sdk->search(
-        fromAirport: 'CAI',
-        toAirport: 'JED',
-        date: '20250622',
-        adt: 1,
-        chd: 0,
-        inf: 0
-    );
-
-    $searchId = $searchResponse->searchId;
-    
-    // Get search results
-    $searchResult = $sdk->getSearchResult($searchId);
-    $flights = $searchResult->result;
+    $response = $sdk->search('DEL', 'MOW', '20250612');
 } catch (SeeruApiException $e) {
-    echo "Error: " . $e->getMessage();
+    echo "API Error: " . $e->getMessage();
+    echo "Status Code: " . $e->getCode();
 }
 ```
 
-### Book a Flight
+## Response Objects
 
-```php
-use Seeru\FlightSDK\Types\{Contact, Passenger};
+All API responses are converted to immutable objects with type-safe properties:
 
-try {
-    // Check fare
-    $fareResponse = $sdk->bookingFare($flights[0]);
-    
-    if ($fareResponse->status === 'ok') {
-        // Create passenger
-        $passenger = new Passenger(
-            type: 'ADT',
-            firstName: 'John',
-            lastName: 'Doe',
-            gender: 'M',
-            birthDate: '1990-01-01',
-            documentType: 'PP',
-            documentNumber: 'A1234567',
-            documentExpiry: '2025-01-01',
-            documentCountry: 'USA',
-            nationality: 'USA'
-        );
-
-        // Create contact
-        $contact = new Contact(
-            fullName: 'John Doe',
-            email: 'john@example.com',
-            mobile: '1234567890'
-        );
-
-        // Save booking
-        $bookingResponse = $sdk->bookingSave(
-            bookingData: $fareResponse->booking,
-            passengers: [$passenger],
-            contact: $contact
-        );
-
-        $orderId = $bookingResponse->orderId;
-    }
-} catch (SeeruApiException $e) {
-    echo "Error: " . $e->getMessage();
-}
-```
-
-### Manage Orders
-
-```php
-try {
-    // Get order details
-    $orderDetails = $sdk->getOrderDetails($orderId);
-
-    // Issue order
-    $issuedOrder = $sdk->issueOrder($orderId);
-
-    // Cancel order
-    $cancelledOrder = $sdk->cancelOrder($orderId);
-} catch (SeeruApiException $e) {
-    echo "Error: " . $e->getMessage();
-}
-```
-
-## Error Handling
-
-The SDK throws `SeeruApiException` for any API errors. The exception includes:
-- Error message
-- HTTP status code (when applicable)
-
-## Features
-
-- Modern PHP 8.0+ features (named arguments, readonly properties)
-- Strong typing with type declarations
-- Proper error handling
-- Immutable response objects
-- PSR-4 autoloading
-- Easy to use fluent interface
+- `SearchResponse`
+- `SearchResultResponse`
+- `BookingFareResponse`
+- `BookingSaveResponse`
+- `OrderResponse`
 
 ## License
 
